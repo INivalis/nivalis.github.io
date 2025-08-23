@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+  <meta name="theme-color" content="#0b1117" />
+  <title>Ghost • Puerta (start + 2 audios bg)</title>
+  <style>
+    :root{
+      --bg:#0b1117;
+      --line-gap: 6px;
+      --side-pad: 20px;
+      --safe-w: calc(100vw - var(--side-pad) - var(--side-pad) - env(safe-area-inset-left) - env(safe-area-inset-right));
+    }
+    *,*::before,*::after{ box-sizing: border-box; }
+    html, body { height: 100%; margin:0; overflow:hidden; }
+    html{ background: var(--bg); overscroll-behavior: none; }
+    body { background:var(--bg); color:#e6f0ff; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
+
+    .fade-black{ position:fixed; inset:0; background:var(--bg); opacity:0; pointer-events:none; z-index:9998; transition: opacity 1.5s ease; }
+    .fade-black.prefade{ opacity:1; transition:none; }
+
+    .top-phrases { position: fixed; top: 13vh; left: 50%; transform: translateX(-50%); width: min(820px, var(--safe-w)); text-align: center; color: #e8edf7; text-shadow: 0 1px 0 rgba(255,255,255,0.05); font-family: Georgia, "Times New Roman", serif; contain: layout paint; }
+    .top-phrases .line{ overflow-wrap:anywhere; white-space: normal; display:block; font-size: clamp(20px, 3.2vw, 32px); opacity:.95; line-height:1.4; min-height: 1lh; padding-bottom: 0; }
+    .top-phrases #l1{ margin-bottom: var(--line-gap); }
+    .tap-hint { font-size: 12px; opacity:.75; margin-top: 12px; position: relative; pointer-events:none; transform: translateZ(0); will-change: transform; }
+
+    .ghost-container { position: fixed; left: 50%; top: 54%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 0px; }
+    .ghost-layer { position: relative; z-index: 2; pointer-events: none; }
+    .ui-layer { position: relative; z-index: 3; margin-top: -40px; }
+
+    #stage { width: 320px; height: 320px; }
+
+    .gate { width: min(300px, var(--safe-w)); max-width: var(--safe-w); display: flex; flex-direction: column; align-items: center; gap: 8px; }
+    .ibox { width:100%; padding:12px; border-radius:12px; background: rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.14); box-shadow: 0 6px 18px rgba(0,0,0,.28); transition: opacity .2s ease; }
+    .ibox.disabled { opacity:.55; filter:saturate(.7); }
+    .field{ width:100%; padding:8px 10px; border-radius:10px; background: rgba(0,0,0,0.35); border:1px solid rgba(255,255,255,0.10); box-shadow: inset 0 2px 8px rgba(0,0,0,0.25); }
+    input[type="text"]{ width:100%; padding:10px 8px; border-radius:10px; border:0; outline:none; background:transparent; color:#e6f0ff; font-size:15px; }
+    input[disabled]{ opacity:.7; }
+    .btn-enter{ padding:6px 12px; font-size:13px; background:transparent; color:#e6f0ff; border:1px solid rgba(255,255,255,0.28); border-radius:10px; }
+    .btn-enter:disabled{ opacity:.5; }
+    .hint{ font-size:12px; opacity:.65; min-height:1lh; text-align:center; }
+    .error{ color:#ff98a0; font-size:13px; min-height:1lh; text-align:center; }
+
+    /* Temblor (2s por activación) + wrapper anti-scroll */
+    @keyframes shake { 0%,100%{ transform: translate(0,0);} 20%{ transform: translate(-2px,1px);} 40%{ transform: translate(2px,-1px);} 60%{ transform: translate(-2px,-1px);} 80%{ transform: translate(2px,1px);} }
+    .shaker { position: fixed; inset: 0; overflow: hidden; width: 100vw; height: 100vh; }
+    .shaker.shake { animation: shake 0.15s linear infinite; }
+
+    /* Pantalla de inicio para habilitar audio */
+    .start { position: fixed; inset: 0; z-index: 10000; background: var(--bg); display:flex; align-items:center; justify-content:center; flex-direction:column; gap:14px; cursor:pointer; user-select:none; text-align:center; }
+    .start .touch-label{ font-size: clamp(12px, 3.2vw, 18px); letter-spacing:.02em; opacity:.75; padding:0; border:0; border-radius:0; background:transparent; box-shadow:none; pointer-events:none; text-shadow: 0 1px 0 rgba(255,255,255,0.05); animation: breathe 1.8s ease-in-out infinite; }
+    @keyframes breathe { 0%{opacity:.6; transform:translateY(0)} 50%{opacity:1; transform:translateY(-2px)} 100%{opacity:.6; transform:translateY(0)} }
+  </style>
+  <script src="libs/pixi.min.js"></script>
+  <script src="libs/live2dcubismcore.min.js"></script>
+  <script src="libs/cubism4.min.js"></script>
+  <script src="libs/index.min.js"></script>
+</head>
+<body>
+  <div id="shaker" class="shaker">
+  <div id="fade-black" class="fade-black prefade"></div>
+
+  <!-- Música de fondo (goteo) y viento en loop (se inician con el botón) -->
+  <audio id="bg" preload="auto" loop playsinline>
+    <source src="goteo.mp3" type="audio/mpeg" />
+  </audio>
+  <audio id="bg2" preload="auto" loop playsinline>
+    <source src="viento.mp3" type="audio/mpeg" />
+  </audio>
+
+  <!-- Overlay de inicio -->
+  <div id="startOverlay" class="start" role="button" aria-label="Awaken Dream..." tabindex="0">
+    <div class="touch-label">Awaken Dream...</div>
+  </div>
+
+  <div class="top-phrases" id="phr">
+    <div class="line" id="l1"></div>
+    <div class="line" id="l2"></div>
+    <div class="tap-hint">Healing Station~</div>
+  </div>
+ 
+  <div class="ghost-container">
+    <div class="ghost-layer"><div id="stage"></div></div>
+    <div class="ui-layer">
+      <div class="gate">
+        <div class="ibox disabled" id="ibox">
+          <div class="field">
+            <input id="pwd" type="text" placeholder="..." autocomplete="off" disabled />
+          </div>
+        </div>
+        <button class="btn-enter" id="ok" disabled>Whisper Key</button>
+        <div class="hint" id="hint">Listen First…</div>
+        <div class="error" id="err"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (async function(){
+    const FADE_IN_HOLD_MS=600, FADE_IN_DURATION_MS=1800, PHRASE_START_DELAY_MS=400, FADE_OUT_DURATION_MS=1400, WAIT_BEFORE_FADE_MS=2000;
+    const TYPE_DELAY=28;
+
+    const MOUTH_PARAM='ParamMouthOpen', EYE_PARAM='ParamEye', EXP_PARAM='ParamExpression', B1_PARAM='ParamBounce1', B2_PARAM='ParamBounce2';
+    const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
+    const BLINK_MIN_S=1.5, BLINK_MAX_S=4.0, BLINK_DURATION_MS=140;
+
+    const phases=[
+      { phrases:['¿Cómo sabré si eres tú?\nDímelo… dime cómo me llamo…','Aquí hace frío...\npero confío en tu voz.'], password:'ghost', error:['Ese no es mi nombre...\n¿O acaso me olvidaste?','Duele...\nVuelve a intentarlo.'] },
+      { phrases:['Entonces me escuchaste...\nQuiero creer en ti.','Me acerco un poco...\n¿Dirás mi verdadero nombre?'], password:'nivalis', error:['No, no es así...\nMe confundes.','¿Por qué dudas?\nPrueba otra vez.'] },
+      { phrases:['Última prueba...\nLo dices siempre igual.','Respóndeme...\nY se abrirá la puerta.'], password:'venus', error:['Ese no es...\nSolo hay un nombre final.','Intenta de nuevo...\nYa casi...'] }
+    ];
+
+    let currentPhase=0, iphr=0, ready=false, canAnswer=false, allowTap=true, flowStarted=false;
+
+    const app=new PIXI.Application({width:320,height:320,backgroundAlpha:0,antialias:true});
+    document.getElementById('stage').appendChild(app.view);
+    let model; try{model=await PIXI.live2d.Live2DModel.from('assets/ghost/ghost.model3.json');app.stage.addChild(model);}catch(e){alert('No se pudo cargar el modelo');return;}
+
+    const core=()=>model.internalModel.coreModel;
+    const setParam=(id,v)=>{try{core().setParameterValueById(id,v);}catch(_){}};
+
+    function playSfx(src){ const a=new Audio(src); a.volume=0.9; a.play().catch(()=>{}); }
+    function triggerAngry(){
+      setParam(EXP_PARAM,30); setParam(B1_PARAM,15); setParam(B2_PARAM,-15);
+      playSfx('rafaga.mp3');
+      duckBgAll(2000, 0.12);
+      shaker.classList.add('shake');
+      if (shakeTO) clearTimeout(shakeTO);
+      shakeTO = setTimeout(()=>{ shaker.classList.remove('shake'); }, 2000);
+    }
+    function triggerHappyFinal(){
+      setParam(EXP_PARAM,-30); setParam(B1_PARAM,10); setParam(B2_PARAM,-10);
+      playSfx('musica.mp3');
+      duckBgAll(WAIT_BEFORE_FADE_MS + FADE_OUT_DURATION_MS + 200, 0.12);
+    }
+    function resetNeutral(){ setParam(EXP_PARAM,0); setParam(B1_PARAM,0); setParam(B2_PARAM,0); }
+
+    const setEye=(v)=>setParam(EYE_PARAM,v);
+    function blinkOnce(){const start=performance.now(),dur=BLINK_DURATION_MS;setEye(1.0);(function frame(){const p=Math.min(1,(performance.now()-start)/dur);const v=1-4*p*(1-p);setEye(v);(p<1?requestAnimationFrame(frame):(setEye(1.0),setTimeout(blinkOnce,(BLINK_MIN_S+Math.random()*(BLINK_MAX_S-BLINK_MIN_S))*1000)));})();}
+
+    function fit(){const w=app.renderer.width,h=app.renderer.height;const targetH=h*0.75;const s=targetH/model.height;model.scale.set(s);model.x=(w-model.width*s)*0.22;model.y=(h*0.5-model.height*s-78);} fit();
+
+    setParam(MOUTH_PARAM,0);setEye(1.0);blinkOnce();resetNeutral();
+
+    const $l1=document.getElementById('l1'),$l2=document.getElementById('l2');
+    const $pwd=document.getElementById('pwd'),$ok=document.getElementById('ok'),$err=document.getElementById('err');
+    const $ibox=document.getElementById('ibox'),$hint=document.getElementById('hint');
+    const fb=document.getElementById('fade-black');
+    const shaker=document.getElementById('shaker');
+    let shakeTO = null;
+
+    // === Audios de fondo ===
+    const bg = document.getElementById('bg');
+    const bg2 = document.getElementById('bg2');
+    let bgStarted=false; 
+    function playLoop(el, vol){ if(!el) return Promise.resolve(); el.volume=vol; el.preload='auto'; const p=el.play(); return p&&p.then?p.catch(()=>{}):Promise.resolve(); }
+    function startAudio(){ if(bgStarted) return; bgStarted=true; return Promise.all([playLoop(bg, 0.25), playLoop(bg2, 0.08)]); }
+    function duckBgAll(ms=2000, to=0.12){ const v1=bg?bg.volume:0, v2=bg2?bg2.volume:0; if(bg) bg.volume=Math.min(v1,to); if(bg2) bg2.volume=Math.min(v2,to*0.8); setTimeout(()=>{ if(bg) bg.volume=v1; if(bg2) bg2.volume=v2; }, ms); }
+
+    // === Inicio manual para habilitar audio y flujo ===
+    const startOverlay=document.getElementById('startOverlay');
+    function startFlow(){ if(flowStarted) return; flowStarted=true; setTimeout(()=>{ fb.classList.remove('prefade'); fb.style.transition=`opacity ${FADE_IN_DURATION_MS}ms ease-in-out`; fb.style.opacity=0; setTimeout(()=>{ ready=true; showPhrases(); }, FADE_IN_DURATION_MS + PHRASE_START_DELAY_MS); }, FADE_IN_HOLD_MS); }
+    async function startAll(){ try{ await startAudio(); }catch(_){} startOverlay.remove(); startFlow(); }
+    startOverlay.addEventListener('pointerdown', (e)=>{ e.preventDefault(); startAll(); }, { once:true });
+    startOverlay.addEventListener('keydown', (e)=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); startAll(); } });
+
+    function enableGate(on){ canAnswer=on; $pwd.disabled=$ok.disabled=!on; $ibox.classList.toggle('disabled',!on); $hint.textContent=on?'':'Listen First…'; if(on){$pwd.value='';} else {$pwd.blur();} }
+
+    let typing=false,typeId=null,mouthId=null;
+    function startMouth(){if(mouthId)clearInterval(mouthId);mouthId=setInterval(()=>{const t=performance.now()/150;const v=0.15+Math.abs(Math.sin(t))*0.85;setParam(MOUTH_PARAM,-30+v*60);},33);} 
+    function stopMouth(){if(mouthId){clearInterval(mouthId);mouthId=null;}setParam(MOUTH_PARAM,0);} 
+    function typeInto(el,text,done){if(typeId){clearInterval(typeId);typeId=null;}const str=String(text||'');typing=true;el.textContent='';startMouth();let i=0;if(!str.length){typing=false;stopMouth();return void(done&&done());}typeId=setInterval(()=>{el.textContent=str.slice(0,++i);if(i>=str.length){clearInterval(typeId);typeId=null;typing=false;stopMouth();done&&done();}},TYPE_DELAY);} 
+
+    function writeAbove(text,done){const parts=String(text).split('\n');if(parts.length>1){$l2.textContent='';typeInto($l1,parts[0],()=>typeInto($l2,parts.slice(1).join(' '),()=>done&&done()));}else{$l2.textContent=$l1.textContent;typeInto($l1,parts[0],()=>done&&done());}}
+
+    function showPhrases(){const pset=phases[currentPhase].phrases;const last=pset.length-1;const idx=Math.min(iphr,last);writeAbove(pset[idx],()=>{if(idx===last){enableGate(true);allowTap=false;}else{allowTap=true;}});} 
+    function showErrorPhrases(){allowTap=false;enableGate(false);const phase=phases[currentPhase];writeAbove(phase.error[iphr%phase.error.length],()=>{iphr++;enableGate(true);});}
+
+    document.addEventListener('click',e=>{if(!ready||typing||!allowTap)return;const tag=(e.target.tagName||'').toLowerCase();if(tag==='input'||tag==='button'||(e.target.closest&&e.target.closest('.gate')))return;const psetLen=phases[currentPhase].phrases.length;if(iphr<psetLen-1){iphr++;showPhrases();}}, {passive:true});
+
+    function tryEnter(){
+      if(!canAnswer){$err.textContent='Primero escucha esta parte…';return;}
+      const val=($pwd.value||'').trim().toLowerCase();if(!val)return;const phase=phases[currentPhase];
+      if(val===phase.password){
+        $err.textContent='';$pwd.value='';iphr=0;enableGate(false);allowTap=true;
+        if(currentPhase<phases.length-1){ resetNeutral(); currentPhase++; showPhrases(); }
+        else { triggerHappyFinal(); setTimeout(()=>{fb.classList.remove('prefade');fb.style.transition=`opacity ${FADE_OUT_DURATION_MS}ms ease-in-out`;fb.style.opacity=1;setTimeout(()=>window.location.href='next.html',FADE_OUT_DURATION_MS+100);},WAIT_BEFORE_FADE_MS); }
+      } else {
+        iphr=0;triggerAngry();showErrorPhrases();$pwd.value='';$pwd.blur();
+      }
+    }
+
+    $ok.addEventListener('click',tryEnter);
+    $pwd.addEventListener('keydown',e=>{if(e.key==='Enter')tryEnter();});
+  })();
+  </script>
+  </div>
+</body>
+</html>
