@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#0b1117" />
   <title>Comienzo~</title>
   <style>
-    /* Botón flotante de audio (esquina superior derecha) */
-/* Botón de audio – versión oscura y discreta */
+    /* Botón de audio */
+/* Boton version oscura y discreta */
 .audio-fab{
   position: fixed;
   top: calc(env(safe-area-inset-top, 0px) + 10px);
@@ -17,11 +17,11 @@
   /* tamaño compacto: texto ON/OFF cabe sin “gritar” */
   width: 42px; height: 42px; border-radius: 9999px;
 
-  /* fondo más oscuro que se mezcla con el tuyo */
+  /* fondo más oscuro */
   background: rgba(8,14,20,0.58);
   backdrop-filter: blur(6px) saturate(105%) brightness(85%);
 
-  /* líneas que “se mezclan” en vez de brillar demasiado */
+  /* líneas  */
   border: 1px solid rgba(210,230,255,0.08);
   box-shadow:
     inset 0 0 0 1px rgba(255,255,255,0.03),
@@ -34,7 +34,7 @@
 }
 .audio-fab:active{ transform: scale(0.985); }
 
-/* Estado activo: un pelín más de relieve, todavía sobrio */
+/* Estado activo: relieve, sobrio */
 .audio-fab.is-active{
   background: rgba(10,18,26,0.66);
   border-color: rgba(210,230,255,0.12);
@@ -112,7 +112,7 @@
   <div id="shaker" class="shaker">
   <div id="fade-black" class="fade-black prefade"></div>
 
-  <!-- Música de fondo (goteo) y viento en loop (se inician con el botón) -->
+  <!-- Música de fondo y viento en loop -->
   <audio id="bg" preload="auto" loop playsinline>
     <source src="goteo.mp3" type="audio/mpeg" />
   </audio>
@@ -161,7 +161,7 @@
     const BLINK_MIN_S=1.5, BLINK_MAX_S=4.0, BLINK_DURATION_MS=140;
 
     const phases=[
-      { phrases:['I ll update it later outside ctm', 'hahaha...\hahaha....','Aquí hace frío...\n¡No need to be so curious!'], password:'fuerapelado', error:['No no no...\nTry again','hurts...\nTry again.'] },
+      { phrases:['This is not for you hihi','Dont be too curious :p', 'Remember to put this under the necklace', 'I ll update it later...', 'Let me know before you deliver it'], password:'fuerapelado', error:['No no no...\njsjsjs...','hurts...\nTry again.'] },
       { phrases:['Entonces me escuchaste...\nQuiero creer en ti.','Me acerco un poco...\n¿Dirás mi verdadero nombre?'], password:'nivalis', error:['No, no es así...\nMe confundes.','¿Por qué dudas?\nPrueba otra vez.'] },
       { phrases:['Última prueba...\nLo dices siempre igual.','Respóndeme...\nY se abrirá la puerta.'], password:'venus', error:['Ese no es...\nSolo hay un nombre final.','Intenta de nuevo...\nYa casi...'] }
     ];
