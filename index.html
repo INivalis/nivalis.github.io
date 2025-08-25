@@ -98,7 +98,7 @@
     .shaker { position: fixed; inset: 0; overflow: hidden; width: 100vw; height: 100vh; }
     .shaker.shake { animation: shake var(--shake-speed) linear infinite; }
 
-    /* Pantalla de inicio para habilitar audio */
+    /* Pantalla inicio para habilitar audio */
     .start { position: fixed; inset: 0; z-index: 10000; background: var(--bg); display:flex; align-items:center; justify-content:center; flex-direction:column; gap:14px; cursor:pointer; user-select:none; text-align:center; }
     .start .touch-label{ font-size: clamp(12px, 3.2vw, 18px); letter-spacing:.02em; opacity:.75; padding:0; border:0; border-radius:0; background:transparent; box-shadow:none; pointer-events:none; text-shadow: 0 1px 0 rgba(255,255,255,0.05); animation: breathe 1.8s ease-in-out infinite; }
     @keyframes breathe { 0%{opacity:.6; transform:translateY(0)} 50%{opacity:1; transform:translateY(-2px)} 100%{opacity:.6; transform:translateY(0)} }
