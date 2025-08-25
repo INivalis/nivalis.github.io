@@ -473,13 +473,7 @@ bg2 && bg2.addEventListener('pause', refreshFab);
 refreshFab();
 
 
-    function enableGate(on){ canAnswer=on; $pwd.disabled=$ok.disabled=!on; $ibox.classList.toggle('disabled',!on); $hint.textContent=on?'':'Listen First…'; if(on){
-    try{
-      const now = performance.now();
-      const angry = (now < (window.__angryUntil||0)) || window.__angryMode;
-      window.__nextHitAt = now + (angry ? 280 : (3000 + Math.random()*3000));
-    }catch(_){}
-$pwd.value='';} else {$pwd.blur();} }
+    function enableGate(on){ canAnswer=on; $pwd.disabled=$ok.disabled=!on; $ibox.classList.toggle('disabled',!on); $hint.textContent=on?'':'Listen First…'; if(on){$pwd.value='';} else {$pwd.blur();} }
 
     let typing=false,typeId=null,mouthId=null;
     function startMouth(){if(mouthId)clearInterval(mouthId);mouthId=setInterval(()=>{const t=performance.now()/150;const v=0.15+Math.abs(Math.sin(t))*0.85;setParam(MOUTH_PARAM,-30+v*60);},33);} 
@@ -505,12 +499,7 @@ $pwd.value='';} else {$pwd.blur();} }
       if(!canAnswer){$err.textContent='Primero escucha esta parte…';return;}
       const val=($pwd.value||'').trim().toLowerCase();if(!val)return;const phase=phases[currentPhase];
       if(val===phase.password){
-        $err.textContent='';$pwd.value='';iphr=0;enableGate(false);allowTap=true; try{
-  window.__angryMode = false;
-  window.__angryUntil = 0;
-  // Rearm next random hit for the next phase (3–6s)
-  window.__nextHitAt = performance.now() + 3000 + Math.random()*3000;
-}catch(_){}
+        $err.textContent='';$pwd.value='';iphr=0;enableGate(false);allowTap=true; try{ window.__angryMode = false; window.__nextHitAt = performance.now() + 999999; }catch(_){}
         if(currentPhase<phases.length-1){ resetNeutral(); currentPhase++; showPhrases(); }
         else {
       triggerHappyFinal();
