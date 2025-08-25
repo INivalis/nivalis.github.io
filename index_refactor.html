@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+  <meta name="theme-color" content="#0b1117" />
+  <title>Comienzo~ (refactor)</title>
+
+  <!-- =========================
+       ESTILOS
+       - Limpieza, orden y comentarios por bloque
+       - Se mantiene la estética original
+     ========================= -->
+  <style>
+    :root{
+      --bg:#0b1117;
+      --line-gap: 6px;
+      --side-pad: 20px;
+      --safe-w: calc(100vw - var(--side-pad) - var(--side-pad) - env(safe-area-inset-left) - env(safe-area-inset-right));
+      --shake-speed: 0.05s; /* menor = más rápido */
+    }
+
+    /* Reset básico */
+    *,*::before,*::after{ box-sizing: border-box; }
+    html, body { height: 100%; margin:0; overflow:hidden; }
+    html{ background: var(--bg); overscroll-behavior: none; }
+    body { background:var(--bg); color:#e6f0ff; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
+
+    /* Fundido a negro */
+    .fade-black{ position:fixed; inset:0; background:var(--bg); opacity:0; pointer-events:none; z-index:9998; transition: opacity 1.5s ease; }
+    .fade-black.prefade{ opacity:1; transition:none; }
+
+    /* Frases superiores */
+    .top-phrases { position: fixed; top: 13vh; left: 50%; transform: translateX(-50%); width: min(820px, var(--safe-w)); text-align: center; color: #e8edf7; text-shadow: 0 1px 0 rgba(255,255,255,0.05); font-family: Georgia, "Times New Roman", serif; contain: layout paint; }
+    .top-phrases .line{ overflow-wrap:anywhere; white-space: normal; display:block; font-size: clamp(20px, 3.2vw, 32px); opacity:.95; line-height:1.4; min-height: 1lh; padding-bottom: 0; }
+    .top-phrases #l1{ margin-bottom: var(--line-gap); }
+    .tap-hint { font-size: 12px; opacity:.75; margin-top: 12px; position: relative; pointer-events:none; transform: translateZ(0); will-change: transform; }
+
+    /* Escena fantasma + UI */
+    .ghost-container { position: fixed; left: 50%; top: 54%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 0px; }
+    .ghost-layer { position: relative; z-index: 2; pointer-events: none; }
+    .ui-layer { position: relative; z-index: 3; margin-top: -40px; }
+    #stage { width: 320px; height: 320px; }
+
+    /* Gate / password */
+    .gate { width: min(300px, var(--safe-w)); max-width: var(--safe-w); display: flex; flex-direction: column; align-items: center; gap: 8px; }
+    .ibox { width:100%; padding:12px; border-radius:12px; background: rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.14); box-shadow: 0 6px 18px rgba(0,0,0,.28); transition: opacity .2s ease; }
+    .ibox.disabled { opacity:.55; filter:saturate(.7); }
+    .field{ width:100%; padding:8px 10px; border-radius:10px; background: rgba(0,0,0,0.35); border:1px solid rgba(255,255,255,0.10); box-shadow: inset 0 2px 8px rgba(0,0,0,0.25); }
+    input[type="text"]{ width:100%; padding:10px 8px; border-radius:10px; border:0; outline:none; background:transparent; color:#e6f0ff; font-size:15px; text-align:center; }
+    input[disabled]{ opacity:.7; }
+    .btn-enter{ padding:6px 12px; font-size:13px; background:transparent; color:#e6f0ff; border:1px solid rgba(255,255,255,0.28); border-radius:10px; }
+    .btn-enter:disabled{ opacity:.5; }
+    .hint{ font-size:12px; opacity:.65; min-height:1lh; text-align:center; }
+    .error{ color:#ff98a0; font-size:13px; min-height:1lh; text-align:center; }
+
+    /* Placeholder centrado */
+    #pwd::placeholder,
+    #pwd::-webkit-input-placeholder,
+    #pwd::-moz-placeholder,
+    #pwd:-ms-input-placeholder,
+    #pwd::-ms-input-placeholder{ text-align:center; opacity:.7; }
+
+    /* Temblor global */
+    @keyframes shake { 0%,100%{ transform: translate(0,0);} 20%{ transform: translate(-2px,1px);} 40%{ transform: translate(2px,-1px);} 60%{ transform: translate(-2px,-1px);} 80%{ transform: translate(2px,1px);} }
+    .shaker { position: fixed; inset: 0; overflow: hidden; width: 100vw; height: 100vh; }
+    .shaker.shake { animation: shake var(--shake-speed) linear infinite; }
+
+    /* Overlay de inicio para habilitar audio */
+    .start { position: fixed; inset: 0; z-index: 10000; background: var(--bg); display:flex; align-items:center; justify-content:center; flex-direction:column; gap:14px; cursor:pointer; user-select:none; text-align:center; }
+    .start .touch-label{ font-size: clamp(12px, 3.2vw, 18px); letter-spacing:.02em; opacity:.75; padding:0; border:0; border-radius:0; background:transparent; box-shadow:none; pointer-events:none; text-shadow: 0 1px 0 rgba(255,255,255,0.05); animation: breathe 1.8s ease-in-out infinite; }
+    @keyframes breathe { 0%{opacity:.6; transform:translateY(0)} 50%{opacity:1; transform:translateY(-2px)} 100%{opacity:.6; transform:translateY(0)} }
+
+    /* Efecto golpe en input */
+    @keyframes ibox-bump { 0%{ transform: translateY(0);} 35%{ transform: translateY(2px);} 100%{ transform: translateY(0);} }
+    #ibox.hit .field{ box-shadow: inset 0 3px 10px rgba(0,0,0,0.35), 0 0 0 2px rgba(230,240,255,0.15); animation: ibox-bump 280ms ease-out; }
+    #ibox.hit-strong .field{ box-shadow: inset 0 4px 12px rgba(0,0,0,0.45), 0 0 0 2px rgba(230,240,255,0.22); }
+
+    /* Botón de audio (único elemento) */
+    .audio-fab{
+      position: fixed; top: calc(env(safe-area-inset-top, 0px) + 10px); right: calc(env(safe-area-inset-right, 0px) + 10px);
+      z-index: 10001; width: 42px; height: 42px; border-radius: 9999px;
+      background: rgba(8,14,20,0.58); backdrop-filter: blur(6px) saturate(105%) brightness(85%);
+      border: 1px solid rgba(210,230,255,0.08);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03), 0 0px 0px rgba(0,0,0,0.28);
+      display:flex; align-items:center; justify-content:center; color:#e7eef9; cursor:pointer; user-select:none; -webkit-tap-highlight-color: transparent;
+      transition: background .2s ease, border-color .2s ease, box-shadow .2s ease, transform .06s ease;
+    }
+    .audio-fab:active{ transform: scale(0.985); }
+    .audio-fab.is-active{ background: rgba(10,18,26,0.66); border-color: rgba(210,230,255,0.12); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05), 0 0px 0px rgba(0,0,0,0.32); }
+    .audio-fab .label{ font-weight: 600; font-size: 11.5px; letter-spacing: .08em; line-height: 1; opacity: .92; text-transform: uppercase; }
+  </style>
+
+  <!-- Librerías -->
+  <script src="libs/pixi.min.js"></script>
+  <script src="libs/live2dcubismcore.min.js"></script>
+  <script src="libs/cubism4.min.js"></script>
+  <script src="libs/index.min.js"></script>
+</head>
+<body>
+  <!-- =========================
+       ESTRUCTURA
+     ========================= -->
+  <div id="shaker" class="shaker">
+    <div id="fade-black" class="fade-black prefade"></div>
+
+    <!-- Audio de fondo -->
+    <audio id="bg" preload="auto" loop playsinline>
+      <source src="goteo.mp3" type="audio/mpeg" />
+    </audio>
+    <audio id="bg2" preload="auto" loop playsinline>
+      <source src="viento.mp3" type="audio/mpeg" />
+    </audio>
+
+    <!-- Overlay para iniciar (habilita audio en móviles) -->
+    <div id="startOverlay" class="start" role="button" aria-label="Awaken Dream..." tabindex="0">
+      <div class="touch-label">Awaken Dream...</div>
+    </div>
+
+    <!-- FAB de audio (único, sin duplicados) -->
+    <button id="audioFab" class="audio-fab" aria-label="Activar viento y goteo" aria-pressed="false">
+      <span class="label">OFF</span>
+    </button>
+
+    <!-- Frases superiores -->
+    <div class="top-phrases" id="phr">
+      <div class="line" id="l1"></div>
+      <div class="line" id="l2"></div>
+      <div class="tap-hint">Healing Station~</div>
+    </div>
+
+    <!-- Fantasma + Gate -->
+    <div class="ghost-container">
+      <div class="ghost-layer"><div id="stage"></div></div>
+      <div class="ui-layer">
+        <div class="gate">
+          <div class="ibox disabled" id="ibox">
+            <div class="field">
+              <input id="pwd" type="text" placeholder="..." autocomplete="off" disabled />
+            </div>
+          </div>
+          <button class="btn-enter" id="ok" disabled>Whisper Key</button>
+          <div class="hint" id="hint">Listen First…</div>
+          <div class="error" id="err"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================
+       SCRIPT PRINCIPAL (IIFE)
+       - Módulos pequeños por responsabilidad
+     ========================= -->
+  <script>
+  (async function(){
+    'use strict';
+
+    /* ---------------------
+       CONFIGURACIÓN / CONSTANTES
+    --------------------- */
+    const CFG = {
+      fadeInHold: 600,
+      fadeInDur: 1800,
+      phraseStartDelay: 400,
+      fadeOutDur: 2200,
+      waitBeforeFade: 1000,
+      typeDelay: 28,
+      blinkMin: 1.5, blinkMax: 4.0, blinkDur: 140,
+      params: {
+        mouth: 'ParamMouthOpen', eye: 'ParamEye', exp: 'ParamExpression',
+        b1: 'ParamBounce1', b2: 'ParamBounce2', breath: 'ParamBreath'
+      },
+      sounds: { hit: 'rafaga.mp3', bell: 'bell.mp3' },
+      nextUrl: 'next.html'
+    };
+
+    const PHASES = [
+      { phrases:[
+          'This is not for you\n♪\u2060~(\u2060´\u2060ε\u2060`\u2060 )',
+          'Don\'t be too curious...\n｡◕‿◕｡',
+          'Remember to put this under the necklace\n( ◜‿◝ )♡',
+          'I\'ll update it later...\n＼(°o°)／',
+          'Let me know before you deliver it\n(◠‿◕)'
+        ], password:'fuerapelado', error:['No no no...\njsjsjs...','hurts...\nTry again.'] },
+      { phrases:[
+          'Entonces me escuchaste...\nQuiero creer en ti.',
+          'Me acerco un poco...\n¿Dirás mi verdadero nombre?'
+        ], password:'nivalis', error:['No, no es así...\nMe confundes.','¿Por qué dudas?\nPrueba otra vez.'] },
+      { phrases:[
+          'Última prueba...\nLo dices siempre igual.',
+          'Respóndeme...\nY se abrirá la puerta.'
+        ], password:'venus', error:['Ese no es...\nSolo hay un nombre final.','Intenta de nuevo...\nYa casi...'] }
+    ];
+
+    const DEFAULT_ERR = [
+      '¡No!\nEse no es.', '¿Otra vez?\nConcéntrate.', 'Grrr...\nEsa clave no.', 'Hey.\nEstás cerca pero no.',
+      '¡Ay, Nivalis!\nEso duele.', 'Hmm...\nIntenta con el verdadero nombre.', 'No me provoques.\nPrueba de nuevo.',
+      'Tsk tsk...\nAún no es.', 'Eres terco, ¿eh?\nVuelve a intentar.', 'Casi.\nPero no es esa.'
+    ];
+
+    /* ---------------------
+       DOM (referencias)
+    --------------------- */
+    const $ = (s, p=document) => p.querySelector(s);
+    const shaker = $('#shaker');
+    const fb = $('#fade-black');
+    const l1 = $('#l1'), l2 = $('#l2');
+    const pwd = $('#pwd'), ok = $('#ok'), err = $('#err');
+    const ibox = $('#ibox'), hint = $('#hint');
+    const startOverlay = $('#startOverlay');
+    const audioFab = $('#audioFab');
+    const bg = $('#bg'), bg2 = $('#bg2');
+
+    /* ---------------------
+       UTILIDADES
+    --------------------- */
+    const clamp = (v,min,max)=>Math.max(min,Math.min(max,v));
+    const playSfx = (src) => { const a = new Audio(src); a.volume = 0.9; a.play().catch(()=>{}); };
+
+    // typewriter + boca
+    function typeInto(el, text, delay, startMouth, stopMouth, done){
+      const str = String(text||'');
+      el.textContent = '';
+      if (!str.length){ stopMouth(); return void(done && done()); }
+      startMouth();
+      let i=0; const id = setInterval(()=>{
+        el.textContent = str.slice(0, ++i);
+        if(i>=str.length){ clearInterval(id); stopMouth(); done && done(); }
+      }, delay);
+    }
+
+    function writeAbove(text, startMouth, stopMouth, done){
+      const parts = String(text).split('\n');
+      if(parts.length>1){ l2.textContent=''; typeInto(l1, parts[0], CFG.typeDelay, startMouth, stopMouth, ()=> typeInto(l2, parts.slice(1).join(' '), CFG.typeDelay, startMouth, stopMouth, done)); }
+      else { l2.textContent = l1.textContent; typeInto(l1, parts[0], CFG.typeDelay, startMouth, stopMouth, done); }
+    }
+
+    // fundidos
+    function fadeInStart(){
+      setTimeout(()=>{
+        fb.classList.remove('prefade');
+        fb.style.transition = `opacity ${CFG.fadeInDur}ms ease-in-out`;
+        fb.style.opacity = 0;
+      }, CFG.fadeInHold);
+    }
+
+    function fadeToNext(){
+      // dispara transición y navega al final (con fallback)
+      fb.classList.remove('prefade');
+      fb.style.transition = `opacity ${CFG.fadeOutDur}ms`;
+      void fb.offsetWidth; // reflow para asegurar transición
+      fb.style.opacity = 1;
+      const go = ()=> location.href = CFG.nextUrl;
+      const onEnd = (e)=>{ if(!e || e.propertyName==='opacity'){ fb.removeEventListener('transitionend', onEnd); go(); } };
+      fb.addEventListener('transitionend', onEnd, { once:true });
+      setTimeout(go, CFG.fadeOutDur + 250);
+    }
+
+    /* ---------------------
+       AUDIO (módulo)
+    --------------------- */
+    let bgStarted = false;
+    const audio = {
+      async start(){ if(bgStarted) return; bgStarted=true; try{ await bg.play(); }catch(_){} try{ await bg2.play(); }catch(_){} bg.volume=0.25; bg2.volume=0.08; this.refreshFab(); },
+      bothPaused(){ return (bg && bg.paused) && (bg2 && bg2.paused); },
+      setFabState(isOn){
+        const label = audioFab.querySelector('.label');
+        if(label) label.textContent = isOn ? 'ON' : 'OFF';
+        audioFab.classList.toggle('is-active', isOn);
+        audioFab.setAttribute('aria-pressed', String(isOn));
+        audioFab.setAttribute('aria-label', isOn ? 'Silenciar viento y goteo' : 'Activar viento y goteo');
+      },
+      refreshFab(){ this.setFabState(!this.bothPaused()); },
+      duckAll(ms=2000, to=0.12){ const v1=bg.volume, v2=bg2.volume; bg.volume=Math.min(v1,to); bg2.volume=Math.min(v2,to*0.8); setTimeout(()=>{ bg.volume=v1; bg2.volume=v2; }, ms); }
+    };
+
+    // listeners FAB
+    audioFab.addEventListener('click', async (e)=>{
+      e.stopPropagation();
+      if(!bgStarted){ await audio.start(); return; }
+      if(audio.bothPaused()){ try{ await bg.play(); }catch(_){} try{ await bg2.play(); }catch(_){} }
+      else { bg.pause(); bg2.pause(); }
+      audio.refreshFab();
+    });
+    ['play','pause'].forEach(ev=>{ bg.addEventListener(ev, ()=>audio.refreshFab()); bg2.addEventListener(ev, ()=>audio.refreshFab()); });
+
+    /* ---------------------
+       LIVE2D / PIXI (módulo)
+    --------------------- */
+    const app = new PIXI.Application({ width:320, height:320, backgroundAlpha:0, antialias:true });
+    document.getElementById('stage').appendChild(app.view);
+    let model;
+    try {
+      model = await PIXI.live2d.Live2DModel.from('assets/ghost/ghost.model3.json');
+      app.stage.addChild(model);
+    } catch(e){
+      alert('No se pudo cargar el modelo');
+      return;
+    }
+    const core = ()=> model.internalModel.coreModel;
+    const setParam = (id,v)=>{ try{ core().setParameterValueById(id,v); }catch(_){} };
+    const setEye = (v)=> setParam(CFG.params.eye, v);
+
+    function fitModel(){
+      const w = app.renderer.width, h = app.renderer.height;
+      const targetH = h * 0.78; const s = targetH / model.height;
+      model.scale.set(s);
+      model.x = (w - model.width * s) * 0.21;
+      model.y = (h * 0.5 - model.height * s - 86);
+    }
+    fitModel();
+
+    /* Parpadeo */
+    (function blinkOnce(){
+      const start = performance.now(), dur = CFG.blinkDur;
+      setEye(1.0);
+      (function frame(){
+        const p = Math.min(1, (performance.now() - start)/dur);
+        const v = 1 - 4*p*(1-p);
+        setEye(v);
+        if(p<1) requestAnimationFrame(frame);
+        else { setEye(1.0); setTimeout(blinkOnce, (CFG.blinkMin + Math.random()*(CFG.blinkMax-CFG.blinkMin))*1000); }
+      })();
+    })();
+
+    /* Boca al hablar */
+    let mouthId=null;
+    function startMouth(){ if(mouthId) clearInterval(mouthId); mouthId = setInterval(()=>{ const t=performance.now()/150; const v=0.15+Math.abs(Math.sin(t))*0.85; setParam(CFG.params.mouth,-30+v*60); },33); }
+    function stopMouth(){ if(mouthId){ clearInterval(mouthId); mouthId=null; } setParam(CFG.params.mouth,0); }
+
+    /* Expresión neutra */
+    function neutral(){ setParam(CFG.params.exp,0); setParam(CFG.params.b1,0); setParam(CFG.params.b2,0); }
+    neutral();
+
+    /* ---------------------
+       BRAZOS (movimiento + golpes) 
+    --------------------- */
+    let angryUntil = 0, angryMode = false, nextHitAt = performance.now() + 3000 + Math.random()*3000, hitActive=false, hitDownEnd=0, hitEnd=0, hitArm=1, lastHitArm=2, armCalm=1.0;
+    let armBase1=0, armBase2=0, armTarget1=0, armTarget2=0, nextTargetAt=0;
+    let armBoost = 1.0, armBoostTO = null, armAdd1=6, armAdd2=-6; // offsets suaves
+
+    function boostArms(ms=2000, boost=1.8){ armBoost = boost; if(armBoostTO) clearTimeout(armBoostTO); armBoostTO = setTimeout(()=> armBoost=1.0, ms); }
+
+    function triggerAngry(){
+      const now = performance.now();
+      angryUntil = now + 2200; // 2.2s de enojo fuerte
+      if (!nextHitAt || nextHitAt > now + 700) nextHitAt = now + (200 + Math.random()*500); // primer golpe rápido
+      boostArms(2000, 1.8);
+      setParam(CFG.params.exp, 30);
+
+      // Respiración (ParamBreath) instantánea en este tick
+      const sec2 = performance.now()/1000;
+      const breathRate = 0.22, breathAmp = 9.0; // enojado
+      const breath = Math.sin(2*Math.PI*breathRate*sec2) * breathAmp;
+      setParam(CFG.params.breath, breath);
+
+      playSfx(CFG.sounds.hit);
+      audio.duckAll(2000, 0.12);
+      shaker.classList.add('shake');
+      clearTimeout(shakeTO); shakeTO = setTimeout(()=> shaker.classList.remove('shake'), 2000);
+    }
+
+    function triggerHappyFinal(){
+      const TARGET = -30, HOLD_MS = 320, TWEEN_MS = 260;
+      playSfx(CFG.sounds.bell);
+      audio.duckAll(CFG.waitBeforeFade + CFG.fadeOutDur + 200, 0.12);
+      setTimeout(()=>{
+        const t0 = performance.now(); const from = 0, to = TARGET;
+        (function step(t){ const p = Math.min(1, (t - t0) / TWEEN_MS); const e = 1 - (1 - p) * (1 - p); const v = from + (to - from) * e; setParam(CFG.params.exp, v); if(p<1) requestAnimationFrame(step); }) (t0);
+      }, HOLD_MS);
+    }
+
+    let shakeTO=null;
+
+    // Calma al enfocar el input
+    document.addEventListener('focusin', (e)=>{ if(e.target && e.target.id==='pwd') armCalm = 0.45; }, true);
+    document.addEventListener('focusout',(e)=>{ if(e.target && e.target.id==='pwd') armCalm = 1.0; }, true);
+
+    // Ticker de animación
+    app.ticker.add(()=>{
+      const t = performance.now(); const sec = t/1000;
+
+      // nuevo objetivo (random walk) cada 1.8–2.6s
+      if (t >= nextTargetAt){
+        armTarget1 = (Math.random()*2-1) * 16;
+        armTarget2 = (Math.random()*2-1) * 16;
+        nextTargetAt = t + (1800 + Math.random()*800);
+      }
+      // seguir suavemente los objetivos
+      const follow = 0.06 * armCalm; // menor = más suave
+      armBase1 += (armTarget1 - armBase1) * follow;
+      armBase2 += (armTarget2 - armBase2) * follow;
+
+      // micro oscilaciones sutiles
+      const micro1 = Math.sin(2*Math.PI*0.38*sec) * 2.2 + Math.sin(2*Math.PI*0.23*sec + 1.2) * 1.4;
+      const micro2 = Math.sin(2*Math.PI*0.33*sec + 0.7) * 2.0 + Math.sin(2*Math.PI*0.19*sec + 2.1) * 1.2;
+
+      // respiración lenta + calma + boost
+      const breathMul = 1.0 + 0.16 * Math.sin(2*Math.PI*0.08*sec);
+      const ampMul = breathMul * armCalm * armBoost;
+
+      let b1 = (armBase1 + micro1 + armAdd1) * ampMul;
+      let b2 = (armBase2 + micro2 + armAdd2) * ampMul;
+
+      // Golpe aleatorio
+      if (!hitActive && t >= nextHitAt){
+        hitActive = true;
+        // alterna brazo; evita repetir
+        const other = (lastHitArm===1?2:1);
+        hitArm = (Math.random() < 0.70) ? other : lastHitArm; lastHitArm = hitArm;
+        const down = 130 + Math.random()*80;  // 130–210ms bajar
+        const up   = 240 + Math.random()*160; // 240–400ms subir
+        hitDownEnd = t + down; hitEnd = hitDownEnd + up;
+        const isAngry = (t < angryUntil) || angryMode;
+        const minMs = isAngry ? 280 : 3500, maxMs = isAngry ? 520 : 8500;
+        nextHitAt = t + minMs + Math.random() * (maxMs - minMs);
+        // efecto caja
+        ibox.classList.add('hit'); setTimeout(()=> ibox.classList.remove('hit'), down+up);
+      }
+
+      if (hitActive){
+        const target = (t < angryUntil ? -30 : -28);
+        if (t <= hitDownEnd){ // bajar
+          const p = 1 - Math.max(0, (hitDownEnd - t) / (hitDownEnd - (hitDownEnd - (hitDownEnd - t))));
+          const e = 1 - (1-p)*(1-p);
+          if (hitArm===1) b1 = b1 + (target - b1) * e; else b2 = b2 + (target - b2) * e;
+        } else if (t <= hitEnd){ // subir
+          const p = 1 - Math.max(0, (hitEnd - t) / (hitEnd - hitDownEnd));
+          const e = p*p*(3-2*p);
+          if (hitArm===1) b1 = target + (b1 - target) * e; else b2 = target + (b2 - target) * e;
+        } else { hitActive = false; }
+      }
+
+      setParam(CFG.params.b1, clamp(b1, -30, 30));
+      setParam(CFG.params.b2, clamp(b2, -30, 30));
+
+      // respiración general (ParamBreath)
+      const isAngry = ((performance.now()) < angryUntil) || angryMode;
+      const hasFocusCalm = armCalm;
+      const brRate = isAngry ? 0.22 : (hasFocusCalm < 0.8 ? 0.08 : 0.11);
+      const brAmp  = isAngry ? 9.0  : (hasFocusCalm < 0.8 ? 6.0  : 8.0);
+      const breath = Math.sin(2*Math.PI*brRate*sec) * brAmp;
+      setParam(CFG.params.breath, breath);
+    });
+
+    /* ---------------------
+       FLUJO DE FRASES / PASSWORD
+    --------------------- */
+    let currentPhase=0, iphr=0, ready=false, canAnswer=false, allowTap=true, flowStarted=false, typing=false, lastErrIndex=-1;
+
+    function enableGate(on){
+      canAnswer = on;
+      pwd.disabled = ok.disabled = !on;
+      ibox.classList.toggle('disabled', !on);
+      hint.textContent = on ? '' : 'Listen First…';
+      if(on){ pwd.value=''; // reprogramar primer golpe para próxima fase
+        const now = performance.now(); const angry = (now < angryUntil) || angryMode; nextHitAt = now + (angry ? 280 : (3000 + Math.random()*3000));
+      } else { pwd.blur(); }
+    }
+
+    function showPhrases(){
+      const set = PHASES[currentPhase].phrases; const last = set.length-1; const idx = Math.min(iphr,last);
+      typing = true;
+      writeAbove(set[idx], startMouth, stopMouth, ()=>{ typing=false; if(idx===last){ enableGate(true); allowTap=false; } else { allowTap=true; } });
+    }
+
+    function showError(){
+      allowTap=false; enableGate(false);
+      const phase = PHASES[currentPhase] || {}; const list = (phase.error && phase.error.length) ? phase.error : DEFAULT_ERR;
+      let idx = Math.floor(Math.random()*list.length); if(list.length>1 && idx===lastErrIndex) idx = (idx+1) % list.length; lastErrIndex = idx;
+      typing = true; writeAbove(list[idx], startMouth, stopMouth, ()=>{ typing=false; enableGate(true); });
+    }
+
+    function tryEnter(){
+      if(!canAnswer){ err.textContent = 'Primero escucha esta parte…'; return; }
+      const val = (pwd.value||'').trim().toLowerCase(); if(!val) return;
+      const phase = PHASES[currentPhase];
+      if(val === phase.password){
+        err.textContent=''; pwd.value=''; iphr=0; enableGate(false); allowTap=true; angryMode=false; angryUntil=0; nextHitAt = performance.now() + 3000 + Math.random()*3000; // reseteos
+        if(currentPhase < PHASES.length-1){ neutral(); currentPhase++; showPhrases(); }
+        else { // final feliz + fade y navegación
+          triggerHappyFinal();
+          fadeToNext();
+        }
+      } else {
+        iphr=0; triggerAngry(); showError(); pwd.value=''; pwd.blur(); angryMode=true; const now=performance.now(); if(!nextHitAt || nextHitAt>now+350) nextHitAt = now + 120;
+      }
+    }
+
+    // click para avanzar
+    document.addEventListener('click', (e)=>{
+      if(!ready || typing || !allowTap) return;
+      const tag = (e.target.tagName||'').toLowerCase();
+      if(tag==='input' || tag==='button' || (e.target.closest && e.target.closest('.gate'))) return;
+      const len = PHASES[currentPhase].phrases.length; if(iphr < len-1){ iphr++; showPhrases(); }
+    }, { passive:true });
+
+    // listeners de gate
+    ok.addEventListener('click', tryEnter);
+    pwd.addEventListener('keydown', (e)=>{ if(e.key==='Enter') tryEnter(); });
+
+    /* ---------------------
+       INICIO / OVERLAY
+    --------------------- */
+    function startFlow(){ if(flowStarted) return; flowStarted = true; fadeInStart(); setTimeout(()=>{ ready=true; showPhrases(); }, CFG.fadeInHold + CFG.fadeInDur + CFG.phraseStartDelay); }
+    async function startAll(){ try{ await audio.start(); }catch(_){} startOverlay.remove(); startFlow(); }
+    startOverlay.addEventListener('pointerdown', (e)=>{ e.preventDefault(); startAll(); }, { once:true });
+    startOverlay.addEventListener('keydown', (e)=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); startAll(); } });
+
+  })();
+  </script>
+</body>
+</html>
