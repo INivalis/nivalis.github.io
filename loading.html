@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Loading — Nivalis (fade in/out + whisper)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700&display=swap" rel="stylesheet">
+  <style>
+    html, body { margin:0; height:100%; overflow:hidden; background:#ffffff; }
+    canvas#stage { width:100vw; height:100vh; display:block; }
+
+    /* Velo de entrada/salida */
+    #veil { position: fixed; inset: 0; background:#0B1117; opacity:1; transition: opacity .8s ease; pointer-events:none; z-index:9999; }
+    #veil.hidden { opacity:0; }
+
+    /* HUD minimal (centrado estable) */
+    #hud { position: fixed; left:0; right:0; bottom:7vh; display:flex; flex-direction:column; align-items:center; gap:6px; pointer-events:none; z-index: 999; }
+    #hud .msg { position: relative; display:grid; grid-template-columns: 3ch auto 3ch; align-items:center; justify-items:center; text-align:center; font: 700 22px/1 "Nunito", "Quicksand", ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color:#8E96C5; letter-spacing:.06em; text-shadow: 0 1px 0 rgba(255,255,255,.35); animation: floatY 2.4s ease-in-out infinite; }
+    #hud .msg .pad { width:3ch; visibility:hidden; }
+    #hud .msg .dots { width:3ch; text-align:left; }
+
+    @keyframes floatY { 0%{ transform: translateY(0); } 50%{ transform: translateY(-4px); } 100%{ transform: translateY(0);} }
+  </style>
+</head>
+<body>
+  <div id="veil" aria-hidden="true"></div>
+  <canvas id="stage"></canvas>
+  <div id="hud">
+    <div class="msg">
+      <span class="pad">...</span>
+      <span id="loadingText">Loading</span>
+      <span class="dots"></span>
+    </div>
+  </div>
+
+  <!-- Librerías -->
+  <script src="./libs/pixi.min.js"></script>
+  <script src="./libs/live2dcubismcore.min.js"></script>
+  <script src="./libs/cubism4.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display/dist/index.min.js"></script>
+
+  <script>
+  (async () => {
+    // ====== Pixi setup ======
+    PIXI.settings.SCALE_MODE = PIXI.SCALE_MODES.LINEAR;
+    const DPR = Math.min(window.devicePixelRatio || 1, 2);
+    const app = new PIXI.Application({
+      view: document.getElementById('stage'),
+      backgroundAlpha: 0,
+      antialias: true,
+      autoDensity: true,
+      resolution: DPR,
+      powerPreference: 'high-performance',
+      resizeTo: window
+    });
+
+    const model = await PIXI.live2d.Live2DModel.from('assets/loading/loading.model3.json');
+    model.anchor.set(0.5, 1);
+    app.stage.addChild(model);
+
+    function layout(){
+      const w = app.renderer.width / DPR;
+      const h = app.renderer.height / DPR;
+      model.position.set(w/2, h/1.2);
+      const base = Math.min(w / 1080, h / 1920);
+      model.scale.set(base * 0.35);
+    }
+    window.addEventListener('resize', layout, { passive: true });
+    layout();
+
+    // ====== Helpers Live2D ======
+    const core = () => model && model.internalModel && model.internalModel.coreModel;
+    function clamp(v, min, max){ return Math.max(min, Math.min(max, v)); }
+    function setParam(id, value){
+      try {
+        const c = core();
+        if (!c) return;
+        if (id === 'ParamEye') {
+          // 0..1 (blink) — tu rig usa 1 = abierto → invertimos
+          value = 1 - value; 
+          c.setParameterValueById(id, clamp(value, 0, 1));
+        } else {
+          c.setParameterValueById(id, clamp(value, -30, 30));
+        }
+      } catch (e) {}
+    }
+
+    // Defaults según tu rig
+    (function applyDefaults(){
+      const DEFAULTS = {
+        ParamLoad: -30,
+        ParamEye: 1,
+        ParamEyeM: 30,
+        ParamBreathe: 0,
+        ParamTentacles1: 0,
+        ParamTentacles2: 0,
+        ParamTentacles3: 0,
+        ParamBounceArm2: 0
+      };
+      for (const [id, val] of Object.entries(DEFAULTS)) setParam(id, val);
+    })();
+
+    // ====== Animación ======
+    const ANIM = {
+      breathe: { amplitude: 30, period: 3.0, rampIn: 0.6 },
+      blink:   { minDelay: 0.7, maxDelay: 1.6, close: 0.06, hold: 0.03, open: 0.10, doubleProb: 0.25, doubleGap: [0.10, 0.20] },
+      tentacles: { gain: 1.0, smooth: 6.0, t1:{amp:28,period:3.0,phase:0.0,rampIn:0.4}, t2:{amp:26,period:2.6,phase:Math.PI/2,rampIn:0.4}, t3:{amp:24,period:3.4,phase:Math.PI,rampIn:0.4} },
+      arms: { baseAmp:14, basePeriod:1.9, wobbleAmp:8, wobblePeriod:0.9, bias:8 },
+      eyeM: { base:15, amp:15, period:6.5, phase:0.3, rampIn:0.8 }
+    };
+
+    let tPrev = performance.now();
+    const tStart = tPrev;
+    let tAccum = 0;
+    const TAU = Math.PI * 2;
+    function osc(t, period, amp, phase){ return Math.sin((t / period) * TAU + (phase || 0)) * amp; }
+    function easeOutQuad(x){ return 1 - (1 - x) * (1 - x); }
+    function easeInOutQuad(x){ return x < 0.5 ? 2*x*x : 1 - Math.pow(-2*x + 2, 2) / 2; }
+
+    // Blink state
+    const BlinkState = { Idle:0, Closing:1, Hold:2, Opening:3 };
+    let blink = { state:BlinkState.Idle, timer:0, nextDelay:rand(ANIM.blink.minDelay, ANIM.blink.maxDelay), value:0, justDoubled:false };
+    function rand(a,b){ return a + Math.random()*(b-a); }
+
+    // Tentacles smoothing
+    const tentaclePolarity = { t1: 1, t2: -1, t3: 1 };
+    let t1Smooth=0, t2Smooth=0, t3Smooth=0;
+
+    // Arms smoothing
+    let armSmooth = 0; const ARM_SMOOTH = 6.0; let invertArms = false;
+
+    // ====== HUD & Flow ======
+    const NEXT_URL = 'nivalis.html';
+    const DURATION = 6.7;           // carga simulada
+    const EXIT_FADE_MS = 800;
+    const veil = document.getElementById('veil');
+    const hud = document.getElementById('hud');
+    const loadingText = document.getElementById('loadingText');
+    const dotsEl = document.querySelector('#hud .dots');
+
+    // Dots animation
+    let dotsActive = true;
+    let dotState = 0;
+    const dotsTimer = setInterval(() => {
+      if (!dotsActive) return;
+      dotState = (dotState + 1) % 4; // 0..3 puntos
+      if (dotsEl) dotsEl.textContent = '.'.repeat(dotState);
+    }, 320);
+
+    // Fade-in de entrada (tras primer frame)
+    requestAnimationFrame(() => { setTimeout(() => { if (veil) veil.classList.add('hidden'); }, 50); });
+
+    // Frases "susurro guiado"
+    const phrases = ['listen', 'follow', 'trust', 'step into the hush'];
+    let phraseIndex = -1;
+    let progress = 0; let exitStarted = false; let ctaShown = false;
+
+    function showCTA(){
+      if (ctaShown) return; ctaShown = true;
+      document.body.classList.add('ready');
+      phraseIndex = 0;
+      // mantener los puntos animados también en modo frases
+      dotsActive = true; dotState = 0; if (dotsEl) dotsEl.textContent = '';
+      if (loadingText) loadingText.textContent = phrases[phraseIndex];
+    }
+
+    function advanceOrExit(e){
+      if (!document.body.classList.contains('ready')) return;
+      if (exitStarted) return;
+      if (e && e.preventDefault) e.preventDefault();
+      if (phraseIndex < phrases.length - 1) {
+        phraseIndex++;
+        if (loadingText) loadingText.textContent = phrases[phraseIndex];
+      } else {
+        triggerExit();
+      }
+    }
+
+    document.addEventListener('click', advanceOrExit);
+    document.addEventListener('touchend', advanceOrExit);
+    document.addEventListener('keydown', (e)=>{ if (e.key === 'Enter' || e.key === ' ') advanceOrExit(e); });
+
+    function triggerExit(){
+      if (exitStarted) return; exitStarted = true;
+      if (veil) {
+        veil.classList.remove('hidden'); // fade-out
+        setTimeout(()=>{ window.location.href = NEXT_URL; }, EXIT_FADE_MS);
+      } else {
+        window.location.href = NEXT_URL;
+      }
+    }
+
+    function setProgress(p){
+      const cl = clamp(p, 0, 1);
+      setParam('ParamLoad', -30 + cl * 60); // -30 → +30
+      return cl;
+    }
+
+    // ====== Main ticker ======
+    app.ticker.add(() => {
+      const now = performance.now();
+      const dt = (now - tPrev) / 1000; tPrev = now;
+
+      // Respiración
+      tAccum += dt; const sinceStart = (now - tStart) / 1000;
+      const phase = (tAccum % ANIM.breathe.period) / ANIM.breathe.period; // 0..1
+      const ramp = ANIM.breathe.rampIn ? Math.min(1, sinceStart / ANIM.breathe.rampIn) : 1;
+      const amp = ANIM.breathe.amplitude * ramp;
+      const breatheVal = Math.sin(phase * TAU) * amp;  // -30..+30
+      setParam('ParamBreathe', breatheVal);
+
+      // Parpadeo
+      blink.timer += dt;
+      switch (blink.state) {
+        case BlinkState.Idle:
+          blink.value = 0; if (blink.timer >= blink.nextDelay) { blink.state=BlinkState.Closing; blink.timer=0; }
+          break;
+        case BlinkState.Closing: {
+          const p = clamp(blink.timer / ANIM.blink.close, 0, 1);
+          blink.value = easeOutQuad(p); if (p>=1){ blink.state=BlinkState.Hold; blink.timer=0; }
+          break; }
+        case BlinkState.Hold:
+          blink.value = 1; if (blink.timer >= ANIM.blink.hold){ blink.state=BlinkState.Opening; blink.timer=0; }
+          break;
+        case BlinkState.Opening: {
+          const p = clamp(blink.timer / ANIM.blink.open, 0, 1);
+          blink.value = 1 - easeInOutQuad(p);
+          if (p>=1){
+            blink.state=BlinkState.Idle; blink.timer=0;
+            if (!blink.justDoubled && Math.random() < ANIM.blink.doubleProb){
+              blink.nextDelay = rand(ANIM.blink.doubleGap[0], ANIM.blink.doubleGap[1]); blink.justDoubled = true;
+            } else { blink.nextDelay = rand(ANIM.blink.minDelay, ANIM.blink.maxDelay); blink.justDoubled = false; }
+          }
+          break; }
+      }
+      setParam('ParamEye', blink.value);
+
+      // Tentáculos (suaves)
+      const r1 = Math.min(1, sinceStart / ANIM.tentacles.t1.rampIn);
+      const r2 = Math.min(1, sinceStart / ANIM.tentacles.t2.rampIn);
+      const r3 = Math.min(1, sinceStart / ANIM.tentacles.t3.rampIn);
+      const breatheN = breatheVal / 30;
+      const gain = ANIM.tentacles.gain * (1 + 0.06 * Math.abs(breatheN));
+      const t1T = tentaclePolarity.t1 * gain * osc(sinceStart, ANIM.tentacles.t1.period, ANIM.tentacles.t1.amp * r1, ANIM.tentacles.t1.phase);
+      const t2T = tentaclePolarity.t2 * gain * osc(sinceStart, ANIM.tentacles.t2.period, ANIM.tentacles.t2.amp * r2, ANIM.tentacles.t2.phase);
+      const t3T = tentaclePolarity.t3 * gain * osc(sinceStart, ANIM.tentacles.t3.period, ANIM.tentacles.t3.amp * r3, ANIM.tentacles.t3.phase);
+      const aT = clamp(dt * ANIM.tentacles.smooth, 0, 1);
+      t1Smooth += (t1T - t1Smooth) * aT; t2Smooth += (t2T - t2Smooth) * aT; t3Smooth += (t3T - t3Smooth) * aT;
+      setParam('ParamTentacles1', t1Smooth); setParam('ParamTentacles2', t2Smooth); setParam('ParamTentacles3', t3Smooth);
+
+      // Brazos (suaves)
+      let armTarget = ANIM.arms.bias + osc(sinceStart, ANIM.arms.basePeriod, ANIM.arms.baseAmp, 0) + osc(sinceStart, ANIM.arms.wobblePeriod, ANIM.arms.wobbleAmp, Math.PI/3);
+      if (invertArms) armTarget *= -1; const alpha = clamp(dt * ARM_SMOOTH, 0, 1); armSmooth += (armTarget - armSmooth) * alpha; setParam('ParamBounceArm2', armSmooth);
+
+      // Ojos medusa
+      const eyeMRamp = Math.min(1, sinceStart / ANIM.eyeM.rampIn);
+      const eyeMVal = ANIM.eyeM.base + osc(sinceStart, ANIM.eyeM.period, ANIM.eyeM.amp * eyeMRamp, ANIM.eyeM.phase);
+      setParam('ParamEyeM', eyeMVal);
+
+      // Progreso simulado + CTA
+      const target = Math.min((now - tStart) / 1000 / DURATION, 1);
+      progress += (target - progress) * Math.min(1, dt * 6.0);
+      setProgress(progress);
+      if (target >= 1 && !ctaShown) showCTA();
+    });
+  })();
+  </script>
+</body>
+</html>
