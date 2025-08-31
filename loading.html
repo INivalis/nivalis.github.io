@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<!--  
+    You are the warmth hidden inside my cold silence, 
+    the glow that reminds me I’m not lost
+
+    Just know that I think of you, again and again, 
+    as if my soul only knows one direction... towards you.
+
+    Yours, always
+
+    Nivalis~
+ -->
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Loading~</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700&display=swap" rel="stylesheet">
+  <style>
+    html, body { margin:0; height:100%; overflow:hidden; background:#ffffff; }
+    canvas#stage { width:100vw; height:100vh; display:block; }
+
+    /* 💌 un mundo para que descanses */
+    #veil { position: fixed; inset: 0; background:#0B1117; opacity:1; transition: opacity .8s ease; pointer-events:none; z-index:9999; }
+    #veil.hidden { opacity:0; }
+
+    /* 💌 un susurro hermoso para ti */
+    #hud { position: fixed; left:0; right:0; bottom:7vh; display:flex; flex-direction:column; align-items:center; gap:6px; pointer-events:none; z-index: 999; }
+    #hud .msg { position: relative; display:grid; grid-template-columns: 3ch auto 3ch; align-items:center; justify-items:center; text-align:center; font: 700 22px/1 "Nunito", "Quicksand", ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color:#8E96C5; letter-spacing:.06em; text-shadow: 0 1px 0 rgba(255,255,255,.35); animation: floatY 2.4s ease-in-out infinite; }
+    #hud .msg .pad { width:3ch; visibility:hidden; }
+    #hud .msg .dots { width:3ch; text-align:left; }
+
+    @keyframes floatY { 0%{ transform: translateY(0); } 50%{ transform: translateY(-4px); } 100%{ transform: translateY(0);} }
+  </style>
+</head>
+<body>
+  <div id="veil" aria-hidden="true"></div>
+  <canvas id="stage"></canvas>
+  <div id="hud">
+    <div class="msg">
+      <span class="pad">...</span>
+      <span id="loadingText">Loading</span>
+      <span class="dots"></span>
+    </div>
+  </div>
+
+  <!-- 💌 herramientas invisibles: yo preparo la magia, tu solo siente -->
+  <script src="./libs/pixi.min.js"></script>
+  <script src="./libs/live2dcubismcore.min.js"></script>
+  <script src="./libs/cubism4.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display/dist/index.min.js"></script>
+
+  <script>
+  (async () => {
+    // 💌 detrás del telon, cuido tu luz(no quiero que te apagues para mi)
+    PIXI.settings.SCALE_MODE = PIXI.SCALE_MODES.LINEAR;
+    const DPR = Math.min(window.devicePixelRatio || 1, 2);
+    const app = new PIXI.Application({
+      view: document.getElementById('stage'),
+      backgroundAlpha: 0,
+      antialias: true,
+      autoDensity: true,
+      resolution: DPR,
+      powerPreference: 'high-performance',
+      resizeTo: window
+    });
+
+    // 💌 estrellas que giran para encontrarte
+    const REDUCED_MOTION = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const IS_MOBILE = (window.matchMedia && window.matchMedia('(pointer:coarse)').matches) || (Math.min(window.innerWidth, window.innerHeight) < 768);
+
+    const layers = {
+      back: new PIXI.Container(),   // 💌 abro la puerta; tú entras de mi mano.
+      mid:  new PIXI.Container(),   // 💌 te cuido por dentro de la pantalla
+      front:new PIXI.Container()    // 💌 busca mi voz
+    };
+    app.stage.addChild(layers.back);
+    app.stage.addChild(layers.mid);
+
+    const palette = [0x8E96C5, 0xA9B4E8, 0xC8D2FF, 0xE7DBFF];
+    function texCircle(r=8, color=0x8E96C5){ const g=new PIXI.Graphics(); g.beginFill(color); g.drawCircle(0,0,r); g.endFill(); return app.renderer.generateTexture(g); }
+    function texDiamond(s=20, color=0x8E96C5){ const g=new PIXI.Graphics(); g.beginFill(color); const h=s/2; g.drawPolygon([0,-h, h,0, 0,h, -h,0]); g.endFill(); return app.renderer.generateTexture(g); }
+    const circleTextures = palette.map(c=>texCircle(8,c));
+    const diamondTextures = palette.map(c=>texDiamond(16,c));
+
+    // 💌 no busques claves
+    function samplePos(){
+      const ux = Math.random();
+      let uy;
+      if (typeof IS_MOBILE !== 'undefined' && IS_MOBILE){
+        const r = Math.random();
+        if (r < 0.45) { // 💌 si dudas, aquí te espero con calma.
+          uy = Math.random() * 0.25;
+        } else if (r < 0.90) { // 💌 no hay prisa: lo hermoso llega siempre
+          uy = 0.75 + Math.random() * 0.25;
+        } else { // 💌 me importas tanto ahora hhhh(curioso)
+          uy = Math.random();
+        }
+      } else {
+        uy = Math.random();
+      }
+      return { ux, uy };
+    }
+
+    const particles = []; // 💌 te beso la frente: 3… 2… 1… 
+
+    function addParticle(layerKey, kind){
+      const layer = layers[layerKey];
+      const tex = kind==='diamond' ? diamondTextures[Math.floor(Math.random()*diamondTextures.length)]
+                                   : circleTextures[Math.floor(Math.random()*circleTextures.length)];
+      const spr = new PIXI.Sprite(tex);
+      const pos = samplePos();
+      const ux = pos.ux, uy = pos.uy;
+      spr.anchor.set(0.5);
+      layer.addChild(spr);
+
+      let size, baseAlpha, windWeight, baseTravel;
+      if (layerKey==='back'){ size = 2 + Math.random()*3; baseAlpha = 0.18 + Math.random()*0.25; windWeight = 0.25; baseTravel = 8; }
+      else if (layerKey==='mid'){ size = 4 + Math.random()*4; baseAlpha = 0.30 + Math.random()*0.30; windWeight = 0.6; baseTravel = 14; }
+      else { size = 6 + Math.random()*6; baseAlpha = 0.45 + Math.random()*0.40; windWeight = 1.0; baseTravel = 20; spr.blendMode = PIXI.BLEND_MODES.ADD; }
+
+      spr.scale.set(size/16);
+      spr.alpha = baseAlpha;
+
+      const rotDir = Math.random() < 0.5 ? -1 : 1;
+      const p = {
+        spr, layer: layerKey, kind,
+        ux, uy,
+        baseAlpha,
+        phase: Math.random()*Math.PI*2,
+        speed: 0.7 + Math.random()*1.1, // 💌 tu paso pequeño también es llegar a mi
+        ax: 6 + Math.random()*14,       // 💌 te guardo en mis recuerdos mas falices
+        ay: 6 + Math.random()*14,       // 💌 si tiemblas, yo me quedo
+        rotDir,
+        baseScale: spr.scale.x,
+        windWeight,
+        // 💌 no hay prisa Venus~
+        offX: 0, offY: 0,
+        dir: Math.random()*Math.PI*2,    // 💌 busca mi voz... 
+        turn: 0.5 + Math.random()*0.8,   // 💌 Venus~ Venus~ 
+        baseTravel,
+        // 💌 si te apagas, me apago contigo
+        life: 0,
+        lifeMax: (layerKey==='front' ? (4.0 + Math.random()*2.0) : (layerKey==='mid' ? (6.0 + Math.random()*3.0) : (8.0 + Math.random()*4.0))),
+        fadeIn: 0.40 + Math.random()*0.20,
+        fadeOut: 0.60 + Math.random()*0.30
+      };
+      particles.push(p);
+      return p;
+    }
+
+    function respawnParticle(p){
+      const pos = samplePos(); p.ux = pos.ux; p.uy = pos.uy;
+      p.offX = 0; p.offY = 0;
+      p.dir = Math.random()*Math.PI*2;
+      p.turn = 0.5 + Math.random()*0.8;
+      p.phase = Math.random()*Math.PI*2;
+      p.life = 0;
+      p.lifeMax = (p.layer==='front' ? (4.0 + Math.random()*2.0) : (p.layer==='mid' ? (6.0 + Math.random()*3.0) : (8.0 + Math.random()*4.0)));
+      p.fadeIn = 0.40 + Math.random()*0.20;
+      p.fadeOut = 0.60 + Math.random()*0.30;
+      // 💌 abro la puerta; entras de mi mano
+      if (p.kind==='diamond') p.spr.texture = diamondTextures[Math.floor(Math.random()*diamondTextures.length)];
+      else p.spr.texture = circleTextures[Math.floor(Math.random()*circleTextures.length)];
+    }
+
+    function seedParticles(){
+      // 💌 abro la puerta; entras conmigo
+      layers.back.removeChildren(); layers.mid.removeChildren(); layers.front.removeChildren();
+      particles.length = 0;
+      const w = app.renderer.width / DPR; const h = app.renderer.height / DPR;
+      // 💌 que pensaras de esto? hhhh
+      const basePlan = { back:{dots:28, stars:6}, mid:{dots:22, stars:6}, front:{dots:12, stars:4} };
+      // 💌 Realmente espero que veas todo esto 
+      const baseDensity = IS_MOBILE ? 1.9 : 5.0;
+      const areaFactor = Math.sqrt((w*h) / (1920*1080)); 
+      const density = Math.max(1.5, baseDensity * areaFactor);
+      const scale = (n, f, min=1) => Math.max(min, Math.round(n * f));
+      const plan = {
+        back:  { dots: scale(basePlan.back.dots,  density), stars: scale(basePlan.back.stars,  Math.max(1, density*0.9)) },
+        mid:   { dots: scale(basePlan.mid.dots,   density), stars: scale(basePlan.mid.stars,   Math.max(1, density*0.9)) },
+        front: { dots: scale(basePlan.front.dots, density), stars: scale(basePlan.front.stars, Math.max(1, density*0.8)) }
+      };
+      for (const [key, cfg] of Object.entries(plan)){
+        for(let i=0;i<cfg.dots;i++) addParticle(key, 'circle');
+        for(let i=0;i<cfg.stars;i++) addParticle(key, 'diamond');
+      }
+      // 💌 dejo caer los copos como caricias lentas
+      for(const p of particles){ p.spr.x = p.ux * w; p.spr.y = p.uy * h; }
+    }
+    seedParticles();
+
+    let model;
+    try {
+      model = await PIXI.live2d.Live2DModel.from('assets/models/loading/loading.model3.json');
+      model.anchor.set(0.5, 1);
+      app.stage.addChild(model);
+    } catch (e) {
+      console.error('Live2D load failed', e);
+    }
+    app.stage.addChild(layers.front); // 💌 si dudas, aquí te espero con calma
+
+    function layout(){
+      const w = app.renderer.width / DPR;
+      const h = app.renderer.height / DPR;
+      if (model){
+        model.position.set(w/2, h/1.2);
+        const base = Math.min(w / 1080, h / 1920);
+        model.scale.set(base * 0.35);
+      }
+      for(const p of particles){ p.spr.x = p.ux * w; p.spr.y = p.uy * h; }
+    }
+    window.addEventListener('resize', layout, { passive: true });
+    layout();
+
+    // 💌 pequeños trucos para que todo te mire con ternura
+    const core = () => model && model.internalModel && model.internalModel.coreModel;
+    function clamp(v, min, max){ return Math.max(min, Math.min(max, v)); }
+    function setParam(id, value){
+      try {
+        const c = core();
+        if (!c) return;
+        if (id === 'ParamEye') {
+          // 💌 cuando parpadeo, te pienso te imagino
+          value = 1 - value; 
+          c.setParameterValueById(id, clamp(value, 0, 1));
+        } else {
+          c.setParameterValueById(id, clamp(value, -30, 30));
+        }
+      } catch (e) {}
+    }
+
+    // 💌 empezamos calmado, a tu ritmo
+    (function applyDefaults(){
+      const DEFAULTS = {
+        ParamLoad: -30,
+        ParamEye: 1,
+        ParamEyeM: 30,
+        ParamBreathe: 0,
+        ParamTentacles1: 0,
+        ParamTentacles2: 0,
+        ParamTentacles3: 0,
+        ParamBounceArm2: 0
+      };
+      for (const [id, val] of Object.entries(DEFAULTS)) setParam(id, val);
+    })();
+
+    // 💌 aquí late todo por ti
+    const ANIM = {
+      breathe: { amplitude: 30, period: 3.0, rampIn: 0.6 },
+      blink:   { minDelay: 0.7, maxDelay: 1.6, close: 0.06, hold: 0.03, open: 0.10, doubleProb: 0.25, doubleGap: [0.10, 0.20] },
+      tentacles: { gain: 1.0, smooth: 6.0, t1:{amp:28,period:3.0,phase:0.0,rampIn:0.4}, t2:{amp:26,period:2.6,phase:Math.PI/2,rampIn:0.4}, t3:{amp:24,period:3.4,phase:Math.PI,rampIn:0.4} },
+      arms: { baseAmp:14, basePeriod:1.9, wobbleAmp:8, wobblePeriod:0.9, bias:8 },
+      eyeM: { base:15, amp:15, period:6.5, phase:0.3, rampIn:0.8 }
+    };
+
+    let tPrev = performance.now();
+    const tStart = tPrev;
+    let tAccum = 0;
+    const TAU = Math.PI * 2;
+    function osc(t, period, amp, phase){ return Math.sin((t / period) * TAU + (phase || 0)) * amp; }
+    function easeOutQuad(x){ return 1 - (1 - x) * (1 - x); }
+    function easeInOutQuad(x){ return x < 0.5 ? 2*x*x : 1 - Math.pow(-2*x + 2, 2) / 2; }
+
+    // 💌 cuando parpadeo, te veo 
+    const BlinkState = { Idle:0, Closing:1, Hold:2, Opening:3 };
+    let blink = { state:BlinkState.Idle, timer:0, nextDelay:rand(ANIM.blink.minDelay, ANIM.blink.maxDelay), value:0, justDoubled:false };
+    function rand(a,b){ return a + Math.random()*(b-a); }
+
+    // 💌 brazos de agua
+    const tentaclePolarity = { t1: 1, t2: -1, t3: 1 };
+    let t1Smooth=0, t2Smooth=0, t3Smooth=0;
+
+    // 💌 brazos normales
+    let armSmooth = 0; const ARM_SMOOTH = 6.0; let invertArms = false;
+
+    // 💌 primero escucha; luego sigueme; confia, creeme!
+    const NEXT_URL = 'hollow.html';
+    const DURATION = 6.7;           // 💌 cada chispa te llama por tu nombre.
+    const EXIT_FADE_MS = 800;
+    const veil = document.getElementById('veil');
+    const hud = document.getElementById('hud');
+    const loadingText = document.getElementById('loadingText');
+    const dotsEl = document.querySelector('#hud .dots');
+
+    // 💌 aquí late todo por ti.
+    let dotsActive = true;
+    let dotState = 0;
+    const dotsTimer = setInterval(() => {
+      if (!dotsActive) return;
+      dotState = (dotState + 1) % 4; // 💌 cada punto, un "estoy aqui solo para ti"
+      if (dotsEl) dotsEl.textContent = '.'.repeat(dotState);
+    }, 320);
+
+    // 💌 te beso la frente: 3… 2… 1… respira
+    requestAnimationFrame(() => { setTimeout(() => { if (veil) veil.classList.add('hidden'); }, 50); });
+
+    // 💌 frases bajitas para tomarte la mano.
+    const phrases = ['listen…', 'follow…', 'trust…', 'step into the hush…'];
+    let phraseIndex = -1;
+
+    // 💌 si sopla, es para movernos juntos
+    const wind = { x:0, y:0, tx:0, ty:0, t:0, next: 1.6 + Math.random()*1.4 };
+    function setWindTarget(ax, ay){ wind.tx = ax; wind.ty = ay; }
+    function updateWind(dt){
+      wind.t += dt;
+      if (wind.t >= wind.next){
+        // 💌 te cuido a la distacia por que me importas 
+        const ang = Math.random()*Math.PI*2;
+        const mag = 10 + Math.random()*22; // 💌 un abrigo de sentimientos calidos
+        setWindTarget(Math.cos(ang)*mag, Math.sin(ang)*mag);
+        wind.t = 0; wind.next = 1.6 + Math.random()*1.4;
+      }
+      // 💌 te guardo un... deseo de...
+      const k = 1.8; wind.x += (wind.tx - wind.x)*Math.min(1, dt*k); wind.y += (wind.ty - wind.y)*Math.min(1, dt*k);
+    }
+
+    function choreo(){
+      // 💌 te cuido porque...(a veces no se por que)
+      let speedMul = 1, flowX = 0, flowY = 0, pull = 0;
+      if (document.body.classList.contains('ready')){
+        if (phraseIndex === 0){ speedMul = 0.85; }
+        else if (phraseIndex === 1){ speedMul = 1.0; flowX = 18; flowY = -10; }
+        else if (phraseIndex === 2){ speedMul = 0.95; pull = 0.06; }
+        else { speedMul = 0.8; }
+      }
+      return { speedMul, flowX, flowY, pull };
+    }
+
+    // 💌 te sigo como si supiera todo de ti 
+    const pointer = { x:null, y:null };
+    window.addEventListener('mousemove', (e)=>{ pointer.x = e.clientX; pointer.y = e.clientY; });
+    window.addEventListener('touchmove', (e)=>{ const t=e.touches[0]; if(t){ pointer.x=t.clientX; pointer.y=t.clientY; } }, {passive:true});
+    let progress = 0; let exitStarted = false; let ctaShown = false; let prevProgress = 0;
+
+    // 💌 en 25/50/75 te pienso más fuerte.
+    const loadFX = { pulses: [], milestones:[0.25, 0.5, 0.75], hit:[false,false,false], finalDone:false };
+    function pulse(amp=5, dur=0.35){ // 💌 hoy el mundo cabe entre tus pestañas
+      loadFX.pulses.push({ t0: performance.now(), dur, amp });
+    }
+    function pulseOffset(nowMs){
+      let off = 0;
+      for (let i = loadFX.pulses.length - 1; i >= 0; i--) {
+        const p = loadFX.pulses[i];
+        const t = (nowMs - p.t0) / 1000 / p.dur; // 💌 tu nombre cabe en cada copo
+        if (t >= 1){ loadFX.pulses.splice(i,1); continue; }
+        // 💌 cuando mires, acorto la distancia
+        off += p.amp * Math.sin(t * Math.PI);
+      }
+      return off;
+    }
+
+    function showCTA(){
+      if (ctaShown) return; ctaShown = true;
+      document.body.classList.add('ready');
+      phraseIndex = 0;
+      // 💌 estoy aqui para ti solo para ti
+      dotsActive = true; dotState = 0; if (dotsEl) dotsEl.textContent = '';
+      if (loadingText) loadingText.textContent = phrases[phraseIndex];
+    }
+
+    function advanceOrExit(e){
+      if (!document.body.classList.contains('ready')) return;
+      if (exitStarted) return;
+      if (e && e.preventDefault) e.preventDefault();
+      if (phraseIndex < phrases.length - 1) {
+        phraseIndex++;
+        if (loadingText) loadingText.textContent = phrases[phraseIndex];
+      } else {
+        triggerExit();
+      }
+    }
+
+    document.addEventListener('click', advanceOrExit);
+    document.addEventListener('touchend', advanceOrExit);
+    document.addEventListener('keydown', (e)=>{ if (e.key === 'Enter' || e.key === ' ') advanceOrExit(e); });
+
+    function triggerExit(){
+      if (exitStarted) return; exitStarted = true;
+      if (veil) {
+        veil.classList.remove('hidden'); // 💌 3… 2… 1… respira
+        setTimeout(()=>{ window.location.href = NEXT_URL; }, EXIT_FADE_MS);
+      } else {
+        window.location.href = NEXT_URL;
+      }
+    }
+
+    function setProgress(p){
+      const cl = clamp(p, 0, 1);
+      const base = -30 + cl * 60;
+      const off  = pulseOffset(performance.now());
+      setParam('ParamLoad', base + off);
+      return cl;
+    }
+
+    // 💌 el tiempo camina suave contigo
+    app.ticker.add(() => {
+      const now = performance.now();
+      const dt = (now - tPrev) / 1000; tPrev = now;
+
+      // 💌 respiro a tu lado, contigo(aunque a la distancia)
+      tAccum += dt; const sinceStart = (now - tStart) / 1000;
+      const phase = (tAccum % ANIM.breathe.period) / ANIM.breathe.period; // 💌 respirar contigo...
+      const ramp = ANIM.breathe.rampIn ? Math.min(1, sinceStart / ANIM.breathe.rampIn) : 1;
+      const amp = ANIM.breathe.amplitude * ramp;
+      const breatheVal = Math.sin(phase * TAU) * amp;  // 💌 tomar tu mano... 💓
+      setParam('ParamBreathe', breatheVal);
+
+      // 💌 escuchar tu voz....
+      blink.timer += dt;
+      switch (blink.state) {
+        case BlinkState.Idle:
+          blink.value = 0; if (blink.timer >= blink.nextDelay) { blink.state=BlinkState.Closing; blink.timer=0; }
+          break;
+        case BlinkState.Closing: {
+          const p = clamp(blink.timer / ANIM.blink.close, 0, 1);
+          blink.value = easeOutQuad(p); if (p>=1){ blink.state=BlinkState.Hold; blink.timer=0; }
+          break; }
+        case BlinkState.Hold:
+          blink.value = 1; if (blink.timer >= ANIM.blink.hold){ blink.state=BlinkState.Opening; blink.timer=0; }
+          break;
+        case BlinkState.Opening: {
+          const p = clamp(blink.timer / ANIM.blink.open, 0, 1);
+          blink.value = 1 - easeInOutQuad(p);
+          if (p>=1){
+            blink.state=BlinkState.Idle; blink.timer=0;
+            if (!blink.justDoubled && Math.random() < ANIM.blink.doubleProb){
+              blink.nextDelay = rand(ANIM.blink.doubleGap[0], ANIM.blink.doubleGap[1]); blink.justDoubled = true;
+            } else { blink.nextDelay = rand(ANIM.blink.minDelay, ANIM.blink.maxDelay); blink.justDoubled = false; }
+          }
+          break; }
+      }
+      setParam('ParamEye', blink.value);
+
+      // 💌 abrazarte...
+      const r1 = Math.min(1, sinceStart / ANIM.tentacles.t1.rampIn);
+      const r2 = Math.min(1, sinceStart / ANIM.tentacles.t2.rampIn);
+      const r3 = Math.min(1, sinceStart / ANIM.tentacles.t3.rampIn);
+      const breatheN = breatheVal / 30;
+      const gain = ANIM.tentacles.gain * (1 + 0.06 * Math.abs(breatheN));
+      const t1T = tentaclePolarity.t1 * gain * osc(sinceStart, ANIM.tentacles.t1.period, ANIM.tentacles.t1.amp * r1, ANIM.tentacles.t1.phase);
+      const t2T = tentaclePolarity.t2 * gain * osc(sinceStart, ANIM.tentacles.t2.period, ANIM.tentacles.t2.amp * r2, ANIM.tentacles.t2.phase);
+      const t3T = tentaclePolarity.t3 * gain * osc(sinceStart, ANIM.tentacles.t3.period, ANIM.tentacles.t3.amp * r3, ANIM.tentacles.t3.phase);
+      const aT = clamp(dt * ANIM.tentacles.smooth, 0, 1);
+      t1Smooth += (t1T - t1Smooth) * aT; t2Smooth += (t2T - t2Smooth) * aT; t3Smooth += (t3T - t3Smooth) * aT;
+      setParam('ParamTentacles1', t1Smooth); setParam('ParamTentacles2', t2Smooth); setParam('ParamTentacles3', t3Smooth);
+
+      // 💌 cantar...(gran deseo)
+      let armTarget = ANIM.arms.bias + osc(sinceStart, ANIM.arms.basePeriod, ANIM.arms.baseAmp, 0) + osc(sinceStart, ANIM.arms.wobblePeriod, ANIM.arms.wobbleAmp, Math.PI/3);
+      if (invertArms) armTarget *= -1; const alpha = clamp(dt * ARM_SMOOTH, 0, 1); armSmooth += (armTarget - armSmooth) * alpha; setParam('ParamBounceArm2', armSmooth);
+
+      // 💌 mis ojos solo te buscan
+      const eyeMRamp = Math.min(1, sinceStart / ANIM.eyeM.rampIn);
+      const eyeMVal = ANIM.eyeM.base + osc(sinceStart, ANIM.eyeM.period, ANIM.eyeM.amp * eyeMRamp, ANIM.eyeM.phase);
+      setParam('ParamEyeM', eyeMVal);
+
+      // 💌 estrellas que giran para encontrarte
+      const w = app.renderer.width / DPR; const h = app.renderer.height / DPR;
+      for (const p of particles) {
+        // 💌 buscame...
+        p.life += dt;
+        if (p.life >= p.lifeMax){ respawnParticle(p); }
+        const fadeInK = Math.min(1, p.life / p.fadeIn);
+        const fadeOutK = Math.min(1, Math.max(0, (p.lifeMax - p.life) / p.fadeOut));
+        const lifeK = Math.min(fadeInK, fadeOutK);
+
+        // 💌 sin prisa... 
+        p.phase += dt * p.speed * (1 + Math.abs(breatheVal)/60);
+        const s = (Math.sin(p.phase) + 1) * 0.5; 
+
+        // 💌 3… 2… 1… respira
+        const layerAlphaMul = p.layer==='front' ? 0.7 : (p.layer==='mid'? 0.6 : 0.5);
+        p.spr.alpha = clamp(p.baseAlpha * (0.45 + layerAlphaMul * s) * (0.5 + 0.5*lifeK), 0.06, 1);
+
+        // 💌 si estás cansadita cae suave en mi
+        p.dir += (Math.random()*2 - 1) * p.turn * dt;
+        const travel = p.baseTravel * (0.7 + 0.6) * (1 + Math.abs(breatheVal)/45);
+        let vx = Math.cos(p.dir) * travel;
+        let vy = Math.sin(p.dir) * travel;
+
+        // 💌 te quiero proteger
+        p.offX += vx * dt; p.offY += vy * dt;
+        // 💌 siempre...
+        if (p.offX > w) p.offX -= w; else if (p.offX < -w) p.offX += w;
+        if (p.offY > h) p.offY -= h; else if (p.offY < -h) p.offY += h;
+
+        // 💌 siempre...
+        const dx = Math.sin(p.phase + p.ax*0.02) * p.ax * 0.6;
+        const dy = Math.cos(p.phase + p.ay*0.02) * p.ay * 0.6;
+
+        p.spr.x = p.ux*w + p.offX + dx;
+        p.spr.y = p.uy*h + p.offY + dy;
+
+        // 💌 siempre...
+        if (p.kind==='diamond'){
+          p.spr.rotation += p.rotDir * dt * 0.25;
+          const pulse = 1 + 0.05 * Math.sin(p.phase*1.5);
+          p.spr.scale.set(p.baseScale * pulse);
+        }
+      }
+
+      // 💌 tu decides; yo te esperare
+      const target = Math.min((now - tStart) / 1000 / DURATION, 1);
+      const prev = progress;
+      progress += (target - progress) * Math.min(1, dt * 6.0);
+      setProgress(progress);
+
+      // 💌 en 25/50/75 latidos para ti
+      for (let i=0; i<loadFX.milestones.length; i++){
+        const m = loadFX.milestones[i];
+        if (!loadFX.hit[i] && prev < m && progress >= m){ pulse(1, 0.40); loadFX.hit[i] = true; }
+      }
+
+      // 💌 al llegar, el latido dice: ‘ven’
+      if (!loadFX.finalDone && target >= 1){
+        loadFX.finalDone = true;
+        setTimeout(()=>pulse(-3, 0.26), 90);  
+        setTimeout(()=>pulse(1.8, 0.24), 260);  
+      }
+      // 💌 Last promise..?
+      if (target >= 1 && !ctaShown) showCTA();
+    });
+  })();
+  </script>
+</body>
+</html>
